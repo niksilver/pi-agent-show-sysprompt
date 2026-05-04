@@ -14,7 +14,7 @@
 	"scripts": {
 		"typecheck": "tsgo --noEmit",
 		"check": "bun run typecheck && bun run biome:check",
-		"publish": "bun publish --access public",
+		"release": "bun publish --access public",
 		"lint": "biome lint .",
 		"format": "biome format --write .",
 		"format:check": "biome format .",
