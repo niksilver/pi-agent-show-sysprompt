@@ -23,8 +23,8 @@ type ToolSchema = {
 function formatCollapsibleMessage(title: string, content: string, expanded: boolean, theme: ThemeLike) {
 	const lineCount = content.length === 0 ? 0 : content.split("\n").length
 	const header = expanded
-		? `${theme.fg("accent", theme.bold(title))}${theme.fg("dim", " (Ctrl+O to collapse)")}`
-		: `${theme.fg("accent", theme.bold(title))}${theme.fg("dim", ` (${lineCount} lines, Ctrl+O to expand)`)}`
+		? `${theme.fg("accent", theme.bold(title))}${theme.fg("dim", " (Ctrl+o to collapse)")}`
+		: `${theme.fg("accent", theme.bold(title))}${theme.fg("dim", ` (${lineCount} lines, Ctrl+o to expand)`)}`
 	const text = expanded ? `${header}\n\n${content}` : header
 	const box = new Box(1, 1, value => theme.bg("customMessageBg", value))
 	box.addChild(new Text(text, 0, 0))
