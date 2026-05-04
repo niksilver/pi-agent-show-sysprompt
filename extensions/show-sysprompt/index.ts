@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent"
+import type { ExtensionAPI, ThemeColor } from "@mariozechner/pi-coding-agent"
 import { Box, Text } from "@mariozechner/pi-tui"
 
 const SYSTEM_PROMPT_MESSAGE_TYPE = "system-prompt"
@@ -6,8 +6,8 @@ const TOOL_SCHEMAS_MESSAGE_TYPE = "tool-schemas"
 const HIDDEN_MESSAGE_TYPES = new Set([SYSTEM_PROMPT_MESSAGE_TYPE, TOOL_SCHEMAS_MESSAGE_TYPE])
 
 type ThemeLike = {
-	fg: (color: string, text: string) => string
-	bg: (color: string, text: string) => string
+	fg: (color: ThemeColor, text: string) => string
+	bg: (color: "customMessageBg", text: string) => string
 	bold: (text: string) => string
 }
 
