@@ -1,26 +1,15 @@
-import type { ExtensionAPI, ThemeColor } from "@mariozechner/pi-coding-agent"
+import type { ExtensionAPI, Theme, ToolInfo } from "@mariozechner/pi-coding-agent"
 import { Box, Text } from "@mariozechner/pi-tui"
+import type { TArray, TEnum, TLiteral, TObject, TSchema, TSchemaOptions, TUnion } from "typebox"
 
 const SYSTEM_PROMPT_MESSAGE_TYPE = "system-prompt"
 const TOOL_SCHEMAS_MESSAGE_TYPE = "tool-schemas"
 const HIDDEN_MESSAGE_TYPES = new Set([SYSTEM_PROMPT_MESSAGE_TYPE, TOOL_SCHEMAS_MESSAGE_TYPE])
 
-type ThemeLike = {
-	fg: (color: ThemeColor, text: string) => string
-	bg: (color: "customMessageBg", text: string) => string
-	bold: (text: string) => string
-}
+type DescribedSchema = TSchema & Pick<TSchemaOptions, "description">
+type ToolParameters = TObject<Record<string, DescribedSchema>> & { required?: string[] }
 
-type ToolSchema = {
-	name: string
-	description: string
-	parameters?: {
-		properties?: Record<string, { type?: string; description?: string }>
-		required?: string[]
-	}
-}
-
-function formatCollapsibleMessage(title: string, content: string, expanded: boolean, theme: ThemeLike) {
+function formatCollapsibleMessage(title: string, content: string, expanded: boolean, theme: Theme) {
 	const lineCount = content.length === 0 ? 0 : content.split("\n").length
 	const header = expanded
 		? `${theme.fg("accent", theme.bold(title))}${theme.fg("dim", " (Ctrl+o to collapse)")}`
@@ -31,13 +20,28 @@ function formatCollapsibleMessage(title: string, content: string, expanded: bool
 	return box
 }
 
-function formatToolSchemas(tools: ToolSchema[]): string {
+function formatSchemaType(schema: TSchema | undefined): string {
+	if (!schema) return "any"
+	if ("const" in schema) return JSON.stringify((schema as TLiteral).const)
+	if ("enum" in schema) return (schema as TEnum).enum.map(value => JSON.stringify(value)).join(" | ")
+	if ("anyOf" in schema) return (schema as TUnion).anyOf.map(formatSchemaType).join(" | ")
+	if ("oneOf" in schema) return (schema as TSchema & { oneOf: TSchema[] }).oneOf.map(formatSchemaType).join(" | ")
+	if ("items" in schema) return `${formatSchemaType((schema as TArray).items)}[]`
+	if ("type" in schema) {
+		const type = (schema as TSchema & { type: string | string[] }).type
+		return Array.isArray(type) ? type.join(" | ") : type
+	}
+	return "any"
+}
+
+function formatToolSchemas(tools: ToolInfo[]): string {
 	if (tools.length === 0) return "No active tools."
 
 	return tools
 		.map(tool => {
-			const properties = tool.parameters?.properties ?? {}
-			const required = new Set(tool.parameters?.required ?? [])
+			const parameters = tool.parameters as Partial<ToolParameters>
+			const properties = parameters.properties ?? {}
+			const required = new Set(parameters.required ?? [])
 			const parameterNames = Object.keys(properties)
 			const header = `${tool.name} - ${tool.description}`
 			if (parameterNames.length === 0) return `${header}\n  (no parameters)`
@@ -46,7 +50,7 @@ function formatToolSchemas(tools: ToolSchema[]): string {
 				.map(name => {
 					const property = properties[name]
 					const presence = required.has(name) ? "required" : "optional"
-					const type = property?.type ?? "any"
+					const type = formatSchemaType(property)
 					const description = property?.description ? ` - ${property.description}` : ""
 					return `  ${name}: ${type} [${presence}]${description}`
 				})
