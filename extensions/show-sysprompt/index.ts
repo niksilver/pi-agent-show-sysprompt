@@ -2,9 +2,12 @@ import type { ExtensionAPI, Theme, ToolInfo } from "@mariozechner/pi-coding-agen
 import { Box, Text } from "@mariozechner/pi-tui"
 import type { TArray, TEnum, TLiteral, TObject, TSchema, TSchemaOptions, TUnion } from "typebox"
 
+
 const SYSTEM_PROMPT_MESSAGE_TYPE = "system-prompt"
 const TOOL_SCHEMAS_MESSAGE_TYPE = "tool-schemas"
 const HIDDEN_MESSAGE_TYPES = new Set([SYSTEM_PROMPT_MESSAGE_TYPE, TOOL_SCHEMAS_MESSAGE_TYPE])
+
+let showEnabled = false
 
 type DescribedSchema = TSchema & Pick<TSchemaOptions, "description">
 type ToolParameters = TObject<Record<string, DescribedSchema>> & { required?: string[] }
@@ -61,6 +64,33 @@ function formatToolSchemas(tools: ToolInfo[]): string {
 		.join("\n\n")
 }
 
+
+function showPromptAndTools(pi: ExtensionAPI, ctx: any) {
+	const shownMessageTypes = new Set(
+		ctx.sessionManager
+			.getBranch()
+			.filter(entry => entry.type === "custom_message" && "customType" in entry && HIDDEN_MESSAGE_TYPES.has(entry.customType))
+			.map(entry => ("customType" in entry ? entry.customType : ""))
+	)
+
+	if (!shownMessageTypes.has(SYSTEM_PROMPT_MESSAGE_TYPE)) {
+		pi.sendMessage({
+			customType: SYSTEM_PROMPT_MESSAGE_TYPE,
+			content: ctx.getSystemPrompt(),
+			display: true
+		})
+	}
+
+	if (!shownMessageTypes.has(TOOL_SCHEMAS_MESSAGE_TYPE)) {
+		const activeTools = new Set(pi.getActiveTools())
+		pi.sendMessage({
+			customType: TOOL_SCHEMAS_MESSAGE_TYPE,
+			content: formatToolSchemas(pi.getAllTools().filter(tool => activeTools.has(tool.name))),
+			display: true
+		})
+	}
+}
+
 export default function showSyspromptExtension(pi: ExtensionAPI) {
 	pi.registerMessageRenderer(SYSTEM_PROMPT_MESSAGE_TYPE, (message, { expanded }, theme) => {
 		const prompt = typeof message.content === "string" ? message.content : ""
@@ -72,29 +102,26 @@ export default function showSyspromptExtension(pi: ExtensionAPI) {
 		return formatCollapsibleMessage("Available tools", schemas, expanded, theme)
 	})
 
-	pi.on("agent_start", (_event, ctx) => {
-		const shownMessageTypes = new Set(
-			ctx.sessionManager
-				.getBranch()
-				.filter(entry => entry.type === "custom_message" && "customType" in entry && HIDDEN_MESSAGE_TYPES.has(entry.customType))
-				.map(entry => ("customType" in entry ? entry.customType : ""))
-		)
-
-		if (!shownMessageTypes.has(SYSTEM_PROMPT_MESSAGE_TYPE)) {
-			pi.sendMessage({
-				customType: SYSTEM_PROMPT_MESSAGE_TYPE,
-				content: ctx.getSystemPrompt(),
-				display: true
-			})
+	pi.registerCommand("show-sysprompt", {
+		description: "Show system prompt and active tool schemas [on|off]",
+		handler: async (args, ctx) => {
+			const action = args?.toLowerCase()
+			if (action === "on") {
+				showEnabled = true
+				showPromptAndTools(pi, ctx)
+				ctx.ui.notify("System prompt and tool schemas enabled", "info")
+			} else if (action === "off") {
+				showEnabled = false
+				ctx.ui.notify("System prompt and tool schemas disabled", "info")
+			} else {
+				ctx.ui.notify("Usage: /show-sysprompt [on|off]", "error")
+			}
 		}
+	})
 
-		if (!shownMessageTypes.has(TOOL_SCHEMAS_MESSAGE_TYPE)) {
-			const activeTools = new Set(pi.getActiveTools())
-			pi.sendMessage({
-				customType: TOOL_SCHEMAS_MESSAGE_TYPE,
-				content: formatToolSchemas(pi.getAllTools().filter(tool => activeTools.has(tool.name))),
-				display: true
-			})
+	pi.on("agent_start", (_event, ctx) => {
+		if (showEnabled) {
+			showPromptAndTools(pi, ctx)
 		}
 	})
 
